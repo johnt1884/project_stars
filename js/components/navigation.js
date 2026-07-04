@@ -168,7 +168,7 @@ const LoadMenu = (() => {
         // Any additional listeners
     }
 
-    return { init };
+    return { init, render };
 })();
 
 /**
