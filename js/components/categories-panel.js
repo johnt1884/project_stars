@@ -9,7 +9,6 @@ const CategoriesPanel = (() => {
     let selectedVideoKey = null;
 
     function init() {
-        render();
         setupListeners();
     }
 

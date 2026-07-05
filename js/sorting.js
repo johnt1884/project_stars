@@ -6,7 +6,6 @@ const SortingManager = (() => {
     const { Events, State, ThumbnailEngine } = window.ShortcutApp;
 
     function init() {
-        render();
         setupListeners();
     }
 
@@ -62,7 +61,8 @@ const SortingManager = (() => {
     }
 
     return {
-        init
+        init,
+        render
     };
 })();
 

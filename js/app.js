@@ -35,7 +35,12 @@ document.addEventListener('DOMContentLoaded', () => {
         Components.VideoEditor.init();
         Components.ScriptGenerator.init();
 
-        // Initial Render of Toolbar
+        // Initial Render of persistent UI components
+        Components.VideoPlayer.render();
+        Components.VideoEditor.render();
+        Components.ScriptGenerator.render();
+
+        // Trigger initial toolbar render
         Components.LoadMenu.render();
 
         initUI();
@@ -49,9 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
      * Initial UI setup
      */
     function initUI() {
-        // Basic UI interactions can be established here
-        const categoriesPanel = document.getElementById('categories-panel');
-        // Initial state for UI elements from Config if needed
+        // Apply initial visual state from persistence
+        const { State, ThemeManager, Components } = window.ShortcutApp;
+
+        document.querySelector('.main-container').classList.toggle('show-numbers', State.get('ui.showNumbers'));
+        document.querySelector('.main-container').classList.toggle('show-dates', State.get('ui.showDates'));
     }
 
     // Run bootstrap

@@ -18,7 +18,6 @@ const VideoEditor = (() => {
     let currentCuts = [];
 
     function init() {
-        render();
         setupListeners();
     }
 
@@ -777,7 +776,7 @@ const VideoEditor = (() => {
         overlay.style.display = isCurrentlyCut ? 'block' : 'none';
     }
 
-    return { init };
+    return { init, render };
 })();
 
 // Export component

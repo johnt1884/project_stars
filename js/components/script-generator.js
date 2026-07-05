@@ -6,7 +6,6 @@ const ScriptGenerator = (() => {
     const { Events, State, Utils } = window.ShortcutApp;
 
     function init() {
-        render();
     }
 
     function render() {
@@ -209,7 +208,7 @@ const ScriptGenerator = (() => {
         return script.join('\r\n');
     }
 
-    return { init };
+    return { init, render };
 })();
 
 // Export component

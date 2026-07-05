@@ -6,7 +6,6 @@ const VideoPlayer = (() => {
     const { Events } = window.ShortcutApp;
 
     function init() {
-        render();
         setupListeners();
     }
 
@@ -110,6 +109,7 @@ const VideoPlayer = (() => {
 
     return {
         init,
+        render,
         openPlayer,
         closePlayer
     };

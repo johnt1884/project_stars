@@ -1,4 +1,102 @@
 /**
+ * Project Navigation Component
+ * Handles project selection and < > buttons.
+ */
+const ProjectNavigation = (() => {
+    const { Events, State, ProjectDiscovery } = window.ShortcutApp;
+
+    function init() {
+        setupListeners();
+    }
+
+    function render() {
+        const leftBar = document.getElementById('top-bar-left');
+
+        const prevBtn = document.createElement('button');
+        prevBtn.id = 'prev-canvas-btn';
+        prevBtn.className = 'bar-button';
+        prevBtn.textContent = '<';
+
+        const select = document.createElement('select');
+        select.id = 'canvas-select';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.id = 'next-canvas-btn';
+        nextBtn.className = 'bar-button';
+        nextBtn.textContent = '>';
+
+        // Find sort selector to insert after it
+        const sortSelector = document.getElementById('sort-selector');
+        if (sortSelector) {
+            sortSelector.after(prevBtn);
+            prevBtn.after(select);
+            select.after(nextBtn);
+        } else {
+            leftBar.appendChild(prevBtn);
+            leftBar.appendChild(select);
+            leftBar.appendChild(nextBtn);
+        }
+
+        select.onchange = () => {
+            const index = parseInt(select.value);
+            const projects = State.get('projects');
+            ProjectDiscovery.loadProject(projects[index]);
+        };
+
+        prevBtn.onclick = () => navigate(-1);
+        nextBtn.onclick = () => navigate(1);
+    }
+
+    function navigate(direction) {
+        const projects = State.get('projects');
+        if (!projects.length) return;
+
+        const current = State.get('currentProject');
+        let index = projects.findIndex(p => p === current);
+
+        index += direction;
+        if (index < 0) index = projects.length - 1;
+        if (index >= projects.length) index = 0;
+
+        ProjectDiscovery.loadProject(projects[index]);
+    }
+
+    function updateDropdown() {
+        const select = document.getElementById('canvas-select');
+        const projects = State.get('projects');
+        const current = State.get('currentProject');
+
+        if (!select) return;
+
+        select.innerHTML = '';
+        projects.forEach((project, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = project.name;
+            if (project === current) option.selected = true;
+            select.appendChild(option);
+        });
+    }
+
+    function setupListeners() {
+        Events.on('discovery:complete', () => {
+            updateDropdown();
+            // Automatically load first project if none selected
+            const projects = State.get('projects');
+            if (projects.length > 0 && !State.get('currentProject')) {
+                ProjectDiscovery.loadProject(projects[0]);
+            }
+        });
+
+        Events.on('project:selected', () => {
+            updateDropdown();
+        });
+    }
+
+    return { init, render };
+})();
+
+/**
  * Load Menu Component
  * Handles directory picking and different loading modes.
  */
@@ -42,7 +140,7 @@ const LoadMenu = (() => {
         optionsBtn.innerHTML = `
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: white;">
                 <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
         `;
 
@@ -107,35 +205,8 @@ const LoadMenu = (() => {
         SizeManager.renderBasic();
         SortingManager.render();
 
-        // Project select buttons
-        const prevBtn = document.createElement('button');
-        prevBtn.id = 'prev-canvas-btn';
-        prevBtn.className = 'bar-button';
-        prevBtn.textContent = '<';
-
-        const select = document.createElement('select');
-        select.id = 'canvas-select';
-
-        const nextBtn = document.createElement('button');
-        nextBtn.id = 'next-canvas-btn';
-        nextBtn.className = 'bar-button';
-        nextBtn.textContent = '>';
-
-        const groupSelect = document.createElement('select');
-        groupSelect.id = 'group-selector';
-
-        leftBar.appendChild(prevBtn);
-        leftBar.appendChild(select);
-        leftBar.appendChild(nextBtn);
-        leftBar.appendChild(groupSelect);
-
-        prevBtn.onclick = () => navigate(-1);
-        nextBtn.onclick = () => navigate(1);
-        select.onchange = () => {
-            const index = parseInt(select.value);
-            const projects = State.get('projects');
-            ProjectDiscovery.loadProject(projects[index]);
-        };
+        // Project Navigation
+        ProjectNavigation.render();
 
         SizeManager.renderToggles();
         CategoriesPanel.renderBasic();
@@ -169,103 +240,6 @@ const LoadMenu = (() => {
     }
 
     return { init, render };
-})();
-
-/**
- * Project Navigation Component
- * Handles project selection and < > buttons.
- */
-const ProjectNavigation = (() => {
-    const { Events, State, ProjectDiscovery } = window.ShortcutApp;
-
-    function init() {
-        render();
-        setupListeners();
-    }
-
-    function render() {
-        const leftBar = document.getElementById('top-bar-left');
-
-        const prevBtn = document.createElement('button');
-        prevBtn.id = 'prev-canvas-btn';
-        prevBtn.className = 'bar-button';
-        prevBtn.textContent = '<';
-
-        const select = document.createElement('select');
-        select.id = 'canvas-select';
-
-        const nextBtn = document.createElement('button');
-        nextBtn.id = 'next-canvas-btn';
-        nextBtn.className = 'bar-button';
-        nextBtn.textContent = '>';
-
-        // Find sort selector to insert after it
-        const sortSelector = document.getElementById('sort-selector');
-        if (sortSelector) {
-            sortSelector.after(prevBtn);
-            prevBtn.after(select);
-            select.after(nextBtn);
-        } else {
-            leftBar.appendChild(prevBtn);
-            leftBar.appendChild(select);
-            leftBar.appendChild(nextBtn);
-        }
-
-        select.onchange = () => {
-            const index = parseInt(select.value);
-            const projects = State.get('projects');
-            ProjectDiscovery.loadProject(projects[index]);
-        };
-
-        prevBtn.onclick = () => navigate(-1);
-        nextBtn.onclick = () => navigate(1);
-    }
-
-    function navigate(direction) {
-        const projects = State.get('projects');
-        if (!projects.length) return;
-
-        const current = State.get('currentProject');
-        let index = projects.findIndex(p => p === current);
-
-        index += direction;
-        if (index < 0) index = projects.length - 1;
-        if (index >= projects.length) index = 0;
-
-        ProjectDiscovery.loadProject(projects[index]);
-    }
-
-    function updateDropdown() {
-        const select = document.getElementById('canvas-select');
-        const projects = State.get('projects');
-        const current = State.get('currentProject');
-
-        select.innerHTML = '';
-        projects.forEach((project, index) => {
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = project.name;
-            if (project === current) option.selected = true;
-            select.appendChild(option);
-        });
-    }
-
-    function setupListeners() {
-        Events.on('discovery:complete', () => {
-            updateDropdown();
-            // Automatically load first project if none selected
-            const projects = State.get('projects');
-            if (projects.length > 0 && !State.get('currentProject')) {
-                ProjectDiscovery.loadProject(projects[0]);
-            }
-        });
-
-        Events.on('project:selected', () => {
-            updateDropdown();
-        });
-    }
-
-    return { init };
 })();
 
 // Export components
