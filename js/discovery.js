@@ -1,78 +1,80 @@
 /**
  * Project Discovery Module
- * Scans the file system for video projects and updates the state.
+ * Recursively scans directories to find video projects.
  */
 const ProjectDiscovery = (() => {
-    const { Config, Events, State, FSAdapter } = window.ShortcutApp;
+    const { State, Events } = window.ShortcutApp;
+    const EXCLUDED_DIRS = new Set(['edit thumbnails', 'thumbnails', 'sc', '.git', 'node_modules', 'recovery', '$recycle.bin', 'originals']);
 
     /**
-     * Scan a directory for projects
-     * A project is defined by having an 'Edit Thumbnails' subfolder.
-     * @param {Object} rootHandle - Virtual Directory Handle
+     * Scan a directory handle for project folders
      */
-    async function scan(rootHandle) {
-        console.log('ProjectDiscovery: Starting scan...');
+    async function scan(dirHandle, path = '') {
         const projects = [];
-
-        await findProjectsRecursive(rootHandle, '', projects);
-
-        // Sort projects by name
-        projects.sort((a, b) => a.name.localeCompare(b.name));
-
-        State.set('projects', projects);
-        Events.emit('discovery:complete', projects);
-        console.log(`ProjectDiscovery: Found ${projects.length} projects.`);
-    }
-
-    /**
-     * Recursively search for directories containing 'Edit Thumbnails'
-     */
-    async function findProjectsRecursive(dirHandle, path, projects) {
-        let isProject = false;
-        const subDirs = [];
 
         for await (const entry of dirHandle.values()) {
             if (entry.kind === 'directory') {
-                if (entry.name.toLowerCase() === 'edit thumbnails') {
-                    isProject = true;
-                } else if (!Config.SKIP_DIRS.has(entry.name.toLowerCase())) {
-                    subDirs.push(entry);
+                const lowerName = entry.name.toLowerCase();
+                if (EXCLUDED_DIRS.has(lowerName)) continue;
+
+                const subPath = path ? `${path}\\${entry.name}` : entry.name;
+
+                // Check if this directory is a project (contains 'Edit Thumbnails')
+                if (await isProject(entry)) {
+                    projects.push({
+                        handle: entry,
+                        name: entry.name,
+                        path: subPath
+                    });
+                } else {
+                    // Recursive scan
+                    const subProjects = await scan(entry, subPath);
+                    projects.push(...subProjects);
                 }
             }
         }
 
-        if (isProject) {
-            projects.push({
-                handle: dirHandle,
-                name: dirHandle.name,
-                path: path || dirHandle.name
-            });
-            // If it's a project, we don't look for nested projects (original behavior)
-            return;
-        }
+        return projects;
+    }
 
-        // Continue searching in subdirectories
-        for (const subDir of subDirs) {
-            const subPath = path ? `${path}\\${subDir.name}` : subDir.name;
-            await findProjectsRecursive(subDir, subPath, projects);
+    /**
+     * Check if a directory handle contains an 'Edit Thumbnails' folder
+     */
+    async function isProject(dirHandle) {
+        try {
+            await dirHandle.getDirectoryHandle('Edit Thumbnails');
+            return true;
+        } catch (e) {
+            return false;
         }
     }
 
     /**
-     * Load a specific project by index or handle
+     * Load a specific project into the state
      */
-    function loadProject(project) {
-        if (!project) return;
+    async function loadProject(project) {
+        console.log(`Discovery: Loading project "${project.name}"`);
         State.set('currentProject', project);
-        Events.emit('project:selected', project);
+
+        const videoFiles = [];
+        for await (const entry of project.handle.values()) {
+            if (entry.kind === 'file' && entry.name.match(/\.(mp4|avi|mov|mkv)$/i)) {
+                const file = await entry.getFile();
+                videoFiles.push({
+                    name: entry.name,
+                    handle: entry,
+                    lastModified: file.lastModified
+                });
+            }
+        }
+
+        State.set('videoFiles', videoFiles);
+        Events.emit('project:loaded', project);
     }
 
-    return {
-        scan,
-        loadProject
-    };
+    return { scan, loadProject };
 })();
 
-// Export to global namespace
+// Export to application namespace
 window.ShortcutApp = window.ShortcutApp || {};
 window.ShortcutApp.ProjectDiscovery = ProjectDiscovery;

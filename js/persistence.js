@@ -1,91 +1,27 @@
 /**
- * Persistence System
- * Handles saving and loading application state to/from localStorage.
+ * Persistence Manager
  */
 const Persistence = (() => {
-    const { Config, Events, State } = window.ShortcutApp;
+    const STORAGE_KEY = 'shortcut_modular_prefs';
 
-    /**
-     * Initialize Persistence
-     * Loads saved state and sets up auto-save on state changes.
-     */
     function init() {
-        console.log('Persistence: Initializing...');
-        loadState();
-        setupAutoSave();
-    }
-
-    /**
-     * Load state from localStorage
-     */
-    function loadState() {
-        try {
-            const savedState = localStorage.getItem(Config.STORAGE_KEYS.STATE);
-            if (savedState) {
-                const parsedState = JSON.parse(savedState);
-
-                // Only merge persistent parts of the state
-                // We don't want to persist transient data like file handles or current video files
-                const persistentState = {
-                    shortcutSelections: parsedState.shortcutSelections || {},
-                    categories: parsedState.categories || { global: [], project: {} },
-                    ui: parsedState.ui || State.get('ui')
-                };
-
-                State.update(persistentState);
-                console.log('Persistence: State loaded successfully.');
-            }
-        } catch (error) {
-            console.error('Persistence: Error loading state:', error);
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const data = JSON.parse(saved);
+            // Apply to state...
         }
     }
 
-    /**
-     * Save current state to localStorage
-     */
-    function saveState() {
-        try {
-            const currentState = State.get();
-
-            // Only persist specific parts of the state
-            const stateToPersist = {
-                shortcutSelections: currentState.shortcutSelections,
-                categories: currentState.categories,
-                ui: currentState.ui
-            };
-
-            localStorage.setItem(Config.STORAGE_KEYS.STATE, JSON.stringify(stateToPersist));
-        } catch (error) {
-            console.error('Persistence: Error saving state:', error);
-        }
+    function save() {
+        const { State } = window.ShortcutApp;
+        const data = {
+            ui: State.get('ui')
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
-    /**
-     * Set up listeners to auto-save on state changes
-     */
-    function setupAutoSave() {
-        Events.on('state:changed', () => {
-            saveState();
-        });
-    }
-
-    /**
-     * Reset all saved data
-     */
-    function reset() {
-        localStorage.removeItem(Config.STORAGE_KEYS.STATE);
-        console.log('Persistence: All saved data has been reset.');
-        // Optionally reload page to return to initial state
-    }
-
-    return {
-        init,
-        saveState,
-        loadState,
-        reset
-    };
+    return { init, save };
 })();
 
-// Export to global namespace
 window.ShortcutApp = window.ShortcutApp || {};
 window.ShortcutApp.Persistence = Persistence;
