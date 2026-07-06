@@ -4,16 +4,22 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Shortcuts Modular: Initializing Application...');
 
-    const { ActionToolbar } = window.ShortcutApp.Components;
+    const { LoadMenu, OptionsMenu, InfoMenu } = window.ShortcutApp.Components;
+    const { Events } = window.ShortcutApp;
 
     /**
      * Bootstrap Function
      */
     function bootstrap() {
-        // Render a sample action bar for visual verification of parity
-        const container = document.getElementById('thumbnail-container');
-        const sampleBar = ActionToolbar.render();
-        container.appendChild(sampleBar);
+        // Initialize UI components
+        LoadMenu.init();
+        OptionsMenu.init();
+        InfoMenu.init();
+
+        // Global dropdown closer
+        window.addEventListener('click', () => {
+            Events.emit('ui:close-all-dropdowns');
+        });
 
         console.log('Shortcuts Modular: Application Ready.');
     }

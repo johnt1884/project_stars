@@ -136,6 +136,47 @@ html, body {
     margin-right: 4px;
 }
 
+/* --- Dropdown Menus --- */
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: var(--top-bar-color);
+    min-width: 250px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 3000;
+    top: 100%;
+    left: 0;
+    border: 1px solid #444;
+    color: white;
+}
+
+.dropdown-content button {
+    color: white;
+    padding: 10px 16px;
+    text-decoration: none;
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.dropdown-content button:hover {
+    background-color: #166fe5;
+}
+
+.dropdown-content button:nth-child(even) {
+    background-color: rgba(255,255,255,0.05);
+}
+
+.load-menu-container {
+    position: relative;
+    margin-right: 10px;
+}
+
 /* --- Row Action Toolbar Refinement --- */
 .row-action-bar {
     display: flex;

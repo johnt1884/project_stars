@@ -1,14 +1,14 @@
 # Project Status: Shortcuts Modular Reconstruction
 
 ## Current Stage
-Stage 2: Core Modular Infrastructure and Toolbar Refinement
+Stage 3: Toolbar Regression Fixes and Load Logic
 
 ## Completed Features
-- Initial directory structure established.
-- Base `index.html` shell and `css/main.css` created with theme variables.
-- Visual parity achieved for Top Navigation Toolbar and Video Action (Row) Toolbar.
+- Fixed Load Menu dropdown functionality and styling.
+- Restored Top-Bar-Right global actions (Create Playlist, Delete Selected).
+- Resolved premature visibility of row toolbars by removing hardcoded samples.
+- Implemented Options and Info menu components with visual parity.
 - Core logic modules initialized: `state.js`, `events.js`, `persistence.js`, `fs-adapter.js`.
-- Modular bootstrap implemented in `app.js`.
 
 ## Remaining Features
 - Top Navigation Toolbar (Global)
