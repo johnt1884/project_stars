@@ -18,7 +18,10 @@ const VideoEditor = (() => {
     let currentCuts = [];
 
     function init() {
-        setupListeners();
+        // Global events that don't depend on DOM being rendered yet
+        Events.on('editor:open', ({ fileHandle, videoName, projectPath }) => {
+            openEditor(fileHandle, videoName, projectPath);
+        });
     }
 
     function render() {
@@ -336,6 +339,223 @@ const VideoEditor = (() => {
         content.appendChild(cutsListContainer);
         modal.appendChild(content);
         document.body.appendChild(modal);
+
+        // NOW attach listeners because elements exist
+        attachListeners(video, playPauseBtn, timeline, cropBox, cropConfirm, cropCancel, frameBackBtn, frameForwardBtn, rotLeftBtn, rot180Btn, rotRightBtn, flipBtn, markStartBtn, markEndBtn, cutSegmentBtn, cropBtn, commitBtn);
+    }
+
+    function attachListeners(video, playPauseBtn, timeline, cropBox, cropConfirm, cropCancel, frameBackBtn, frameForwardBtn, rotLeftBtn, rot180Btn, rotRightBtn, flipBtn, markStartBtn, markEndBtn, cutSegmentBtn, cropBtn, commitBtn) {
+        playPauseBtn.onclick = () => {
+            if (video.paused) {
+                video.play();
+                playPauseBtn.textContent = '⏸ Pause';
+            } else {
+                video.pause();
+                playPauseBtn.textContent = '▶️ Play';
+            }
+        };
+
+        video.ontimeupdate = () => {
+            if (!isScrubbing) updateTimelineUI();
+        };
+
+        video.onloadedmetadata = () => {
+            updateTimelineUI();
+        };
+
+        // Scrubbing Logic
+        timeline.onmousedown = (e) => {
+            isScrubbing = true;
+            scrub(e);
+        };
+
+        window.addEventListener('mousemove', (e) => {
+            if (isScrubbing) scrub(e);
+        });
+
+        window.addEventListener('mouseup', () => {
+            isScrubbing = false;
+        });
+
+        // Frame by Frame
+        const step = (delta) => {
+            video.pause();
+            playPauseBtn.textContent = '▶️ Play';
+            video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + delta));
+        };
+
+        frameBackBtn.onclick = () => step(-1/30);
+        frameForwardBtn.onclick = () => step(1/30);
+
+        // Rotation & Flip
+        rotLeftBtn.onclick = () => {
+            currentRotation = (currentRotation - 90 + 360) % 360;
+            applyVisualTransforms();
+        };
+
+        rot180Btn.onclick = () => {
+            currentRotation = (currentRotation + 180) % 360;
+            applyVisualTransforms();
+        };
+
+        rotRightBtn.onclick = () => {
+            currentRotation = (currentRotation + 90) % 360;
+            applyVisualTransforms();
+        };
+
+        flipBtn.onclick = () => {
+            isFlipped = !isFlipped;
+            flipBtn.classList.toggle('active', isFlipped);
+            applyVisualTransforms();
+        };
+
+        // Cutting logic
+        markStartBtn.onclick = () => {
+            pendingCutStart = video.currentTime;
+            if (pendingCutEnd !== null && pendingCutEnd < pendingCutStart) {
+                [pendingCutStart, pendingCutEnd] = [pendingCutEnd, pendingCutStart];
+            }
+            cutSegmentBtn.disabled = !(pendingCutStart !== null && pendingCutEnd !== null);
+            renderTimelineMarkers();
+        };
+
+        markEndBtn.onclick = () => {
+            pendingCutEnd = video.currentTime;
+            if (pendingCutStart !== null && pendingCutEnd < pendingCutStart) {
+                [pendingCutStart, pendingCutEnd] = [pendingCutEnd, pendingCutStart];
+            }
+            cutSegmentBtn.disabled = !(pendingCutStart !== null && pendingCutEnd !== null);
+            renderTimelineMarkers();
+        };
+
+        cutSegmentBtn.onclick = () => {
+            if (pendingCutStart !== null && pendingCutEnd !== null) {
+                currentCuts.push({ start: pendingCutStart, end: pendingCutEnd });
+                pendingCutStart = null;
+                pendingCutEnd = null;
+                cutSegmentBtn.disabled = true;
+                renderCutsList();
+                renderTimelineMarkers();
+            }
+        };
+
+        // Cropping Logic
+        cropBtn.onclick = () => {
+            isCropping = !isCropping;
+            cropBox.style.display = isCropping ? 'block' : 'none';
+            if (isCropping) {
+                cropBox.style.width = '80%';
+                cropBox.style.height = '80%';
+                cropBox.style.left = '10%';
+                cropBox.style.top = '10%';
+            }
+        };
+
+        cropBox.onmousedown = (e) => {
+            if (e.target.classList.contains('crop-handle')) {
+                cropResizing = e.target.dataset.handle;
+            } else if (e.target === cropBox) {
+                cropDragging = true;
+            } else {
+                return;
+            }
+
+            cropStartPos = { x: e.clientX, y: e.clientY };
+            cropBoxStart = {
+                x: parseFloat(cropBox.style.left) || 0,
+                y: parseFloat(cropBox.style.top) || 0,
+                w: parseFloat(cropBox.style.width) || 0,
+                h: parseFloat(cropBox.style.height) || 0
+            };
+            e.preventDefault();
+        };
+
+        window.addEventListener('mousemove', (e) => {
+            if (!cropDragging && !cropResizing) return;
+
+            const dx = e.clientX - cropStartPos.x;
+            const dy = e.clientY - cropStartPos.y;
+            const vRect = video.getBoundingClientRect();
+            const container = document.getElementById('editor-video-container');
+            const cRect = container.getBoundingClientRect();
+
+            const minX = vRect.left - cRect.left;
+            const minY = vRect.top - cRect.top;
+            const maxX = minX + vRect.width;
+            const maxY = minY + vRect.height;
+
+            if (cropDragging) {
+                let newX = cropBoxStart.x + dx;
+                let newY = cropBoxStart.y + dy;
+                newX = Math.max(minX, Math.min(newX, maxX - cropBoxStart.w));
+                newY = Math.max(minY, Math.min(newY, maxY - cropBoxStart.h));
+                cropBox.style.left = newX + 'px';
+                cropBox.style.top = newY + 'px';
+            } else if (cropResizing) {
+                let newX = cropBoxStart.x;
+                let newY = cropBoxStart.y;
+                let newW = cropBoxStart.w;
+                let newH = cropBoxStart.h;
+
+                if (cropResizing.includes('w')) {
+                    const actualDx = Math.max(minX - cropBoxStart.x, Math.min(dx, cropBoxStart.w - 20));
+                    newX = cropBoxStart.x + actualDx;
+                    newW = cropBoxStart.w - actualDx;
+                }
+                if (cropResizing.includes('e')) {
+                    newW = Math.max(20, Math.min(cropBoxStart.w + dx, maxX - cropBoxStart.x));
+                }
+                if (cropResizing.includes('n')) {
+                    const actualDy = Math.max(minY - cropBoxStart.y, Math.min(dy, cropBoxStart.h - 20));
+                    newY = cropBoxStart.y + actualDy;
+                    newH = cropBoxStart.h - actualDy;
+                }
+                if (cropResizing.includes('s')) {
+                    newH = Math.max(20, Math.min(cropBoxStart.h + dy, maxY - cropBoxStart.y));
+                }
+
+                cropBox.style.left = newX + 'px';
+                cropBox.style.top = newY + 'px';
+                cropBox.style.width = newW + 'px';
+                cropBox.style.height = newH + 'px';
+            }
+        });
+
+        cropConfirm.onclick = (e) => {
+            e.stopPropagation();
+            isCropping = false;
+            cropBox.style.display = 'none';
+            cropBtn.classList.add('active');
+        };
+
+        cropCancel.onclick = (e) => {
+            e.stopPropagation();
+            isCropping = false;
+            cropBox.style.display = 'none';
+            cropBtn.classList.remove('active');
+        };
+
+        commitBtn.onclick = () => {
+            const { currentVideo } = State.get('editor');
+            const key = `${currentVideo.projectPath}|${currentVideo.videoName}`;
+            const selection = State.get('shortcutSelections')[key] || {
+                videoName: currentVideo.videoName,
+                projectPath: currentVideo.projectPath,
+                type: ''
+            };
+
+            selection.editRotation = currentRotation;
+            selection.editFlipped = isFlipped;
+            selection.cuts = JSON.parse(JSON.stringify(currentCuts));
+            selection.isEdited = (currentRotation !== 0 || isFlipped || currentCuts.length > 0);
+
+            const shortcutSelections = State.get('shortcutSelections');
+            shortcutSelections[key] = selection;
+            State.set('shortcutSelections', shortcutSelections);
+
+            Events.emit('shortcuts:updated', { key, selection });
+            closeEditor();
+        };
     }
 
     function applyVisualTransforms() {
@@ -399,253 +619,6 @@ const VideoEditor = (() => {
 
         State.set('editor.isOpen', false);
         modal.style.display = 'none';
-    }
-
-    function setupListeners() {
-        const video = document.getElementById('editor-main-video');
-        const playPauseBtn = document.getElementById('editor-play-pause');
-        const timeline = document.getElementById('editor-timeline');
-        const cropBox = document.getElementById('editor-crop-box');
-        const frameBackBtn = document.getElementById('editor-frame-back'); // Note: added IDs in render
-        const frameForwardBtn = document.getElementById('editor-frame-forward');
-
-        Events.on('editor:open', ({ fileHandle, videoName, projectPath }) => {
-            openEditor(fileHandle, videoName, projectPath);
-        });
-
-        playPauseBtn.onclick = () => {
-            if (video.paused) {
-                video.play();
-                playPauseBtn.textContent = '⏸ Pause';
-            } else {
-                video.pause();
-                playPauseBtn.textContent = '▶️ Play';
-            }
-        };
-
-        video.ontimeupdate = () => {
-            if (!isScrubbing) updateTimelineUI();
-        };
-
-        video.onloadedmetadata = () => {
-            updateTimelineUI();
-        };
-
-        // Scrubbing Logic
-        timeline.onmousedown = (e) => {
-            isScrubbing = true;
-            scrub(e);
-        };
-
-        window.addEventListener('mousemove', (e) => {
-            if (isScrubbing) scrub(e);
-        });
-
-        window.addEventListener('mouseup', () => {
-            isScrubbing = false;
-        });
-
-        // Frame by Frame
-        const step = (delta) => {
-            video.pause();
-            playPauseBtn.textContent = '▶️ Play';
-            video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + delta));
-        };
-
-        // We need to re-select elements because IDs weren't in previous diff's HTML strings
-        document.getElementById('editor-frame-back-btn').onclick = () => step(-1/30);
-        document.getElementById('editor-frame-forward-btn').onclick = () => step(1/30);
-
-        // Rotation & Flip
-        document.getElementById('editor-rot-left-btn').onclick = () => {
-            currentRotation = (currentRotation - 90 + 360) % 360;
-            applyVisualTransforms();
-        };
-
-        document.getElementById('editor-rot-180-btn').onclick = () => {
-            currentRotation = (currentRotation + 180) % 360;
-            applyVisualTransforms();
-        };
-
-        document.getElementById('editor-rot-right-btn').onclick = () => {
-            currentRotation = (currentRotation + 90) % 360;
-            applyVisualTransforms();
-        };
-
-        const flipBtn = document.getElementById('editor-flip-btn');
-        flipBtn.onclick = () => {
-            isFlipped = !isFlipped;
-            flipBtn.classList.toggle('active', isFlipped);
-            applyVisualTransforms();
-        };
-
-        // Cutting logic
-        const cutBtn = document.getElementById('editor-cut-segment-btn');
-
-        document.getElementById('editor-mark-start-btn').onclick = () => {
-            pendingCutStart = video.currentTime;
-            if (pendingCutEnd !== null && pendingCutEnd < pendingCutStart) {
-                [pendingCutStart, pendingCutEnd] = [pendingCutEnd, pendingCutStart];
-            }
-            cutBtn.disabled = !(pendingCutStart !== null && pendingCutEnd !== null);
-            renderTimelineMarkers();
-        };
-
-        document.getElementById('editor-mark-end-btn').onclick = () => {
-            pendingCutEnd = video.currentTime;
-            if (pendingCutStart !== null && pendingCutEnd < pendingCutStart) {
-                [pendingCutStart, pendingCutEnd] = [pendingCutEnd, pendingCutStart];
-            }
-            cutBtn.disabled = !(pendingCutStart !== null && pendingCutEnd !== null);
-            renderTimelineMarkers();
-        };
-
-        cutBtn.onclick = () => {
-            if (pendingCutStart !== null && pendingCutEnd !== null) {
-                currentCuts.push({ start: pendingCutStart, end: pendingCutEnd });
-                pendingCutStart = null;
-                pendingCutEnd = null;
-                cutBtn.disabled = true;
-                renderCutsList();
-                renderTimelineMarkers();
-            }
-        };
-
-        // Cropping Logic
-        const cropBtn = document.getElementById('editor-crop-btn');
-        const cropConfirm = document.getElementById('editor-crop-confirm');
-        const cropCancel = document.getElementById('editor-crop-cancel');
-
-        cropBtn.onclick = () => {
-            isCropping = !isCropping;
-            cropBox.style.display = isCropping ? 'block' : 'none';
-            if (isCropping) {
-                // Initialize crop box to 80% of video area
-                const container = document.getElementById('editor-video-container');
-                cropBox.style.width = '80%';
-                cropBox.style.height = '80%';
-                cropBox.style.left = '10%';
-                cropBox.style.top = '10%';
-            }
-        };
-
-        cropBox.onmousedown = (e) => {
-            if (e.target.classList.contains('crop-handle')) {
-                cropResizing = e.target.dataset.handle;
-            } else if (e.target === cropBox) {
-                cropDragging = true;
-            } else {
-                return;
-            }
-
-            cropStartPos = { x: e.clientX, y: e.clientY };
-            cropBoxStart = {
-                x: parseFloat(cropBox.style.left) || 0,
-                y: parseFloat(cropBox.style.top) || 0,
-                w: parseFloat(cropBox.style.width) || 0,
-                h: parseFloat(cropBox.style.height) || 0
-            };
-            e.preventDefault();
-        };
-
-        window.addEventListener('mousemove', (e) => {
-            if (!cropDragging && !cropResizing) return;
-
-            const dx = e.clientX - cropStartPos.x;
-            const dy = e.clientY - cropStartPos.y;
-            const video = document.getElementById('editor-main-video');
-            const vRect = video.getBoundingClientRect();
-            const container = document.getElementById('editor-video-container');
-            const cRect = container.getBoundingClientRect();
-
-            // Calculate video bounds relative to container
-            const minX = vRect.left - cRect.left;
-            const minY = vRect.top - cRect.top;
-            const maxX = minX + vRect.width;
-            const maxY = minY + vRect.height;
-
-            if (cropDragging) {
-                let newX = cropBoxStart.x + dx;
-                let newY = cropBoxStart.y + dy;
-
-                newX = Math.max(minX, Math.min(newX, maxX - cropBoxStart.w));
-                newY = Math.max(minY, Math.min(newY, maxY - cropBoxStart.h));
-
-                cropBox.style.left = newX + 'px';
-                cropBox.style.top = newY + 'px';
-            } else if (cropResizing) {
-                let newX = cropBoxStart.x;
-                let newY = cropBoxStart.y;
-                let newW = cropBoxStart.w;
-                let newH = cropBoxStart.h;
-
-                if (cropResizing.includes('w')) {
-                    const actualDx = Math.max(minX - cropBoxStart.x, Math.min(dx, cropBoxStart.w - 20));
-                    newX = cropBoxStart.x + actualDx;
-                    newW = cropBoxStart.w - actualDx;
-                }
-                if (cropResizing.includes('e')) {
-                    newW = Math.max(20, Math.min(cropBoxStart.w + dx, maxX - cropBoxStart.x));
-                }
-                if (cropResizing.includes('n')) {
-                    const actualDy = Math.max(minY - cropBoxStart.y, Math.min(dy, cropBoxStart.h - 20));
-                    newY = cropBoxStart.y + actualDy;
-                    newH = cropBoxStart.h - actualDy;
-                }
-                if (cropResizing.includes('s')) {
-                    newH = Math.max(20, Math.min(cropBoxStart.h + dy, maxY - cropBoxStart.y));
-                }
-
-                cropBox.style.left = newX + 'px';
-                cropBox.style.top = newY + 'px';
-                cropBox.style.width = newW + 'px';
-                cropBox.style.height = newH + 'px';
-            }
-        });
-
-        window.addEventListener('mouseup', () => {
-            cropDragging = false;
-            cropResizing = null;
-        });
-
-        cropConfirm.onclick = (e) => {
-            e.stopPropagation();
-            // Save crop state
-            isCropping = false;
-            cropBox.style.display = 'none';
-            cropBtn.classList.add('active');
-        };
-
-        cropCancel.onclick = (e) => {
-            e.stopPropagation();
-            isCropping = false;
-            cropBox.style.display = 'none';
-            cropBtn.classList.remove('active');
-        };
-
-        // Commit Logic
-        document.getElementById('editor-commit-btn').onclick = () => {
-            const { currentVideo } = State.get('editor');
-            const key = `${currentVideo.projectPath}|${currentVideo.videoName}`;
-            const selection = State.get('shortcutSelections')[key] || {
-                videoName: currentVideo.videoName,
-                projectPath: currentVideo.projectPath,
-                type: ''
-            };
-
-            // Update selection with editor state
-            selection.editRotation = currentRotation;
-            selection.editFlipped = isFlipped;
-            selection.cuts = JSON.parse(JSON.stringify(currentCuts));
-            selection.isEdited = (currentRotation !== 0 || isFlipped || currentCuts.length > 0);
-
-            const shortcutSelections = State.get('shortcutSelections');
-            shortcutSelections[key] = selection;
-            State.set('shortcutSelections', shortcutSelections);
-
-            Events.emit('shortcuts:updated', { key, selection });
-            closeEditor();
-        };
     }
 
     function scrub(e) {
